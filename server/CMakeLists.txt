@@ -4,3 +4,6 @@ add_library(server
         Utils.cpp
         Utils.hpp
         Exception.hpp)
+
+target_link_libraries(server PRIVATE toml11)
+target_include_directories(server PRIVATE toml11)
