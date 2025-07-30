@@ -1,0 +1,161 @@
+/*
+** EPITECH PROJECT, 2025
+** webserverCPP
+** File description:
+** HttpServer.cpp
+*/
+
+#include "HttpServer.hpp"
+
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+
+#include "Exception.hpp"
+#include "Utils.hpp"
+
+HttpServer::HttpServer(boost::asio::ip::tcp::socket sock) : _sock(std::move(sock)) {
+    try {
+            std::unique_ptr<boost::asio::streambuf> buffer = std::make_unique<boost::asio::streambuf>();
+            boost::system::error_code error;
+
+            boost::asio::read_until(this->_sock, *buffer, '\n', error);
+
+            if (error && error != boost::asio::error::eof) {
+                throw boost::system::system_error(error);
+            }
+            this->_parseRequest(buffer);
+    } catch (std::exception& e) {
+        std::cerr << "Exception in session: " << e.what() << std::endl;
+        std::string bufferRepo = "HTTP/1.1 500\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Length: 14\r\n"
+            "\r\nInternal Error\n";
+        boost::asio::write(this->_sock, boost::asio::buffer(bufferRepo));
+    }
+}
+
+HttpServer::requestType HttpServer::_getReqType(const std::string &data) {
+    if (data == "GET")
+        return GET;
+    if (data == "POST")
+        return POST;
+    if (data == "UPDATE")
+        return UPDATE;
+    if (data == "DELETE")
+        return DELETE;
+    throw HeaderError("Request type unknown");
+}
+
+void HttpServer::_checkFile(const std::string &filePath) {
+    if (!std::filesystem::exists(filePath))
+        throw NotFound();
+
+    if (!std::filesystem::is_regular_file(filePath)) {
+        throw NotFound();
+    }
+
+    std::ifstream file(filePath);
+    if (!file.is_open())
+        throw PermissionDenied();
+}
+
+std::string HttpServer::_getFileUsingRoute(const std::string &route) {
+    //TODO: add a router using map and function like addRoute
+    if (route == "/")
+        return "index.html";
+    return &route[1];
+}
+
+std::string HttpServer::_getContentType(const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file)
+        return "application/octet-stream";
+
+    std::vector<unsigned char> buffer(512);
+    file.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
+    std::streamsize bytesRead = file.gcount();
+    std::string content(buffer.begin(), buffer.begin() + bytesRead);
+
+    if (bytesRead >= 4 && buffer[0] == 0x25 && buffer[1] == 0x50 &&
+        buffer[2] == 0x44 && buffer[3] == 0x46)
+        return "application/pdf";
+
+    if (bytesRead >= 3 && buffer[0] == 0xFF && buffer[1] == 0xD8 && buffer[2] == 0xFF)
+        return "image/jpeg";
+
+    if (bytesRead >= 4 && buffer[0] == 0x89 && buffer[1] == 0x50 &&
+        buffer[2] == 0x4E && buffer[3] == 0x47)
+        return "image/png";
+
+    if (bytesRead >= 4 && buffer[0] == 0x47 && buffer[1] == 0x49 &&
+        buffer[2] == 0x46 && buffer[3] == 0x38)
+        return "image/gif";
+
+    if (bytesRead >= 8 && buffer[4] == 'f' && buffer[5] == 't' &&
+        buffer[6] == 'y' && buffer[7] == 'p')
+        return "video/mp4";
+
+    if (content.find("<svg") != std::string::npos &&
+        content.find("xmlns=\"http://www.w3.org/2000/svg\"") != std::string::npos)
+        return "image/svg+xml";
+
+    if (content.find("<html") != std::string::npos)
+        return "text/html";
+
+    bool isText = true;
+    for (char c : content) {
+        if ((c < 32 && c != '\n' && c != '\r' && c != '\t') || c > 126) {
+            isText = false;
+            break;
+        }
+    }
+    if (isText)
+        return "text/plain";
+    return "application/octet-stream";
+}
+
+void HttpServer::_parseRequest(const std::unique_ptr<boost::asio::streambuf>& data) {
+    std::istream is(&(*data));
+    std::string message;
+    std::getline(is, message);
+
+    std::vector<std::string> msgSplit = Utils::splitSpace(message);
+
+    if (msgSplit.size() != 3)
+        throw HeaderError("Wrong Header Request Size");
+    this->_reqType = this->_getReqType(msgSplit[0]);
+    this->_route = msgSplit[1];
+    this->_protocolVersion = msgSplit[2];
+
+    std::string filePath = "";
+    std::string fileContent = "";
+    try {
+        filePath = this->_getFileUsingRoute(this->_route);
+        this->_checkFile(filePath);
+        this->_status = 200;
+        fileContent = Utils::getFileContent(filePath);
+    } catch (NotFound &) {
+        this->_status = 404;
+    } catch (PermissionDenied &) {
+        this->_status = 403;
+    }
+
+    std::string bufferRepo = this->_protocolVersion + " " + std::to_string(this->_status) +" "+ (this->_status >= 400 ? "" : "OK") +"\r\n"
+    "Content-Type: " + this->_getContentType(filePath) + "\r\n"
+    "Content-Length: "+std::to_string(fileContent.size())+"\r\n"
+    "\r\n"+
+    fileContent;
+
+    if (this->_status >= 400) {
+        bufferRepo = this->_protocolVersion + " " + std::to_string(this->_status) +" "+ (this->_status >= 400 ? "" : "OK") +"\r\n"
+        "Content-Type: text/plain\r\n"
+        "Content-Length: 3\r\n"
+        "\r\n"+ std::to_string(this->_status) +"\n";
+    }
+
+    boost::asio::write(this->_sock, boost::asio::buffer(bufferRepo));
+}
+
+
+
