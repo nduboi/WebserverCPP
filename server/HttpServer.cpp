@@ -14,7 +14,10 @@
 #include "Exception.hpp"
 #include "Utils.hpp"
 
-HttpServer::HttpServer(boost::asio::ip::tcp::socket sock) : _sock(std::move(sock)) {
+HttpServer::HttpServer(
+    boost::asio::ip::tcp::socket sock,
+    const std::string &staticRoot
+) : _sock(std::move(sock)), _staticRoot(staticRoot) {
     try {
             std::unique_ptr<boost::asio::streambuf> buffer = std::make_unique<boost::asio::streambuf>();
             boost::system::error_code error;
@@ -128,10 +131,12 @@ void HttpServer::_parseRequest(const std::unique_ptr<boost::asio::streambuf>& da
     this->_route = msgSplit[1];
     this->_protocolVersion = msgSplit[2];
 
-    std::string filePath = "";
+    std::string filePath = this->_staticRoot;
+    if (this->_staticRoot.size() > 0)
+        filePath.append("/");
     std::string fileContent = "";
     try {
-        filePath = this->_getFileUsingRoute(this->_route);
+        filePath.append(this->_getFileUsingRoute(this->_route));
         this->_checkFile(filePath);
         this->_status = 200;
         fileContent = Utils::getFileContent(filePath);

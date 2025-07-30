@@ -28,6 +28,7 @@ private:
     requestType _reqType = NONE;
     std::string _route = "";
     std::string _protocolVersion = "";
+    const std::string &_staticRoot;
 
     boost::asio::ip::tcp::socket _sock;
 
@@ -39,7 +40,7 @@ private:
 public:
 
     HttpServer() = delete;
-    HttpServer(boost::asio::ip::tcp::socket sock);
+    HttpServer(boost::asio::ip::tcp::socket sock, const std::string &staticRoot);
     ~HttpServer() = default;
 
 };
