@@ -5,7 +5,11 @@ A lightweight, high-performance HTTP web server built in C++ using Boost.Asio fo
 ## 🌟 Features
 
 - **HTTP/1.1 Support**: Handles standard HTTP requests (GET, POST, UPDATE, DELETE)
-- **Static File Serving**: Efficiently serves static files from a configurable directory
+- **Advanced Routing System**: Flexible routing with both exact routes and folder mapping
+  - Exact route mapping: `/test` → `www/test.html`
+  - Folder mapping: `/www/*` → access all files in `www/` directory
+  - Security: Built-in protection against directory traversal attacks
+- **Static File Serving**: Efficiently serves static files from configurable directories
 - **Smart Content-Type Detection**: Automatically detects file types including:
   - HTML, CSS, JavaScript
   - Images (JPEG, PNG, GIF, SVG)
@@ -13,7 +17,7 @@ A lightweight, high-performance HTTP web server built in C++ using Boost.Asio fo
   - Videos (MP4)
   - Plain text and binary files
 - **Configurable via TOML**: Easy configuration through TOML files
-- **Error Handling**: Proper HTTP status codes (200, 403, 404, 500)
+- **Enhanced Error Handling**: Proper HTTP status codes with informative error pages
 - **Asynchronous I/O**: Built on Boost.Asio for high performance
 - **Cross-Platform**: Compatible with Linux, Windows, and macOS
 
@@ -144,6 +148,8 @@ webserverCPP/
 │   ├── CMakeLists.txt      # Server library CMake config
 │   ├── HttpServer.hpp      # HTTP server class declaration
 │   ├── HttpServer.cpp      # HTTP server implementation
+│   ├── Router.hpp          # URL routing system declaration
+│   ├── Router.cpp          # URL routing system implementation
 │   ├── Utils.hpp           # Utility functions declaration
 │   ├── Utils.cpp           # Utility functions implementation
 │   └── Exception.hpp       # Custom exception classes
@@ -205,15 +211,79 @@ make
 ### Code Structure
 
 - **HttpServer**: Main server class handling HTTP requests and responses
+- **Router**: Advanced URL routing system with support for exact routes and folder mapping
 - **Utils**: Utility functions for file operations and configuration parsing
 - **Exception**: Custom exception classes for error handling
 
+## 🗺️ Routing System
+
+The server features a flexible routing system that supports both exact route mapping and folder-based routing.
+
+### Adding Routes Programmatically
+
+```cpp
+#include "server/Router.hpp"
+
+auto router = std::make_shared<Router>();
+
+// Exact route mapping
+router->addRoute("", "www/index.html");           // / -> www/index.html
+router->addRoute("about", "www/about.html");      // /about -> www/about.html
+router->addRoute("test", "www/test.html");        // /test -> www/test.html
+
+// Folder mapping (allows access to all files in a directory)
+router->addFolder("www", "www");                  // /www/* -> www/*
+router->addFolder("static", "www");               // /static/* -> www/*
+router->addFolder("assets", "public/assets");     // /assets/* -> public/assets/*
+```
+
+### Route Resolution Priority
+
+1. **Exact routes** are checked first
+2. **Folder routes** are checked if no exact match is found
+3. **404 Not Found** is returned if no route matches
+
+### Security Features
+
+- **Directory Traversal Protection**: Routes containing `..` are automatically rejected
+- **File Existence Validation**: Only existing files can be served
+- **Input Sanitization**: All route inputs are validated before processing
+
+### Examples
+
+```bash
+# Exact routes
+GET /           -> serves www/index.html
+GET /test       -> serves www/test.html
+GET /about      -> serves www/about.html
+
+# Folder routes  
+GET /www/style.css    -> serves www/style.css
+GET /static/logo.png  -> serves www/logo.png
+GET /assets/js/app.js -> serves public/assets/js/app.js
+
+# Security
+GET /www/../../../etc/passwd  -> 404 Not Found (blocked)
+```
+
 ### Adding New Routes
 
-Currently, the server uses a simple routing mechanism in `HttpServer::_getFileUsingRoute()`. To add custom routes:
+Currently, the server uses an advanced routing system with the `Router` class. To add custom routes:
 
-1. Modify the `_getFileUsingRoute()` method in `HttpServer.cpp`
-2. Add your routing logic using a map-based approach for better scalability
+1. **Programmatically** (recommended): Use the Router API in your `main.cpp`
+2. **Extend the Router class**: Add new methods for more complex routing patterns
+
+Example of extending routing in `main.cpp`:
+```cpp
+auto router = std::make_shared<Router>();
+
+// Add your custom routes
+router->addRoute("api/status", "www/api/status.json");
+router->addRoute("contact", "www/contact.html");
+router->addFolder("docs", "documentation");
+
+// The router will automatically handle the routing logic
+```
 
 ## 🐛 Troubleshooting
 

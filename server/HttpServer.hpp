@@ -12,6 +12,8 @@
 #include <string>
 #include <memory>
 
+#include "Router.hpp"
+
 
 class HttpServer {
 public:
@@ -29,6 +31,7 @@ private:
     std::string _route = "";
     std::string _protocolVersion = "";
     const std::string &_staticRoot;
+    std::shared_ptr<Router> _router;
 
     boost::asio::ip::tcp::socket _sock;
 
@@ -40,7 +43,7 @@ private:
 public:
 
     HttpServer() = delete;
-    HttpServer(boost::asio::ip::tcp::socket sock, const std::string &staticRoot);
+    HttpServer(boost::asio::ip::tcp::socket sock, const std::string &staticRoot, std::shared_ptr<Router> router);
     ~HttpServer() = default;
 
 };

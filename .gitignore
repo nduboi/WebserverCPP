@@ -1,3 +1,5 @@
 my-build-*
 cmake-build-*
 .idea
+*.html
+*.css

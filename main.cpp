@@ -12,11 +12,20 @@ int main() {
         boost::asio::ip::tcp::acceptor acceptor(io_context, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port));
 
         std::cout << "Serveur TCP démarré sur le port: "+ std::to_string(port) +". En attente de connexions..." << std::endl;
+        auto router = std::make_shared<Router>();
 
+        router->addRoute("", "www/index.html");
+        router->addRoute("test", "www/test.html");
+        router->addFolder("www", "www");
+        router->addFolder("static", "www");
+
+        std::cout << "[Main] Routes configurées:" << std::endl;
+        for (const auto& route : router->getRegisteredRoutes())
+            std::cout << "  " << route << std::endl;
         for (;;) {
             boost::asio::ip::tcp::socket socket(io_context);
             acceptor.accept(socket);
-            HttpServer(std::move(socket), static_root);
+            HttpServer(std::move(socket), static_root, router);
         }
     } catch (std::exception& e) {
         std::cerr << "Exception: " << e.what() << std::endl;

@@ -10,14 +10,17 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <utility>
+#include <utility>
 
 #include "Exception.hpp"
 #include "Utils.hpp"
 
 HttpServer::HttpServer(
     boost::asio::ip::tcp::socket sock,
-    const std::string &staticRoot
-) : _sock(std::move(sock)), _staticRoot(staticRoot) {
+    const std::string &staticRoot,
+    std::shared_ptr<Router> router
+) : _staticRoot(staticRoot), _router(std::move(router)), _sock(std::move(sock)) {
     try {
             std::unique_ptr<boost::asio::streambuf> buffer = std::make_unique<boost::asio::streambuf>();
             boost::system::error_code error;
@@ -64,10 +67,24 @@ void HttpServer::_checkFile(const std::string &filePath) {
 }
 
 std::string HttpServer::_getFileUsingRoute(const std::string &route) {
-    //TODO: add a router using map and function like addRoute
-    if (route == "/")
-        return "index.html";
-    return &route[1];
+    std::string cleanRoute = route;
+    if (cleanRoute.starts_with("/")) {
+        cleanRoute = cleanRoute.substr(1);
+    }
+    
+    // Route par défaut pour la racine
+    if (cleanRoute.empty()) {
+        cleanRoute = "";
+    }
+    
+    auto result = this->_router->askRoute(cleanRoute);
+    if (!result.has_value()) {
+        std::cerr << "[HttpServer] Route non trouvée: " << route << std::endl;
+        throw NotFound();
+    }
+    
+    std::cout << "[HttpServer] Route résolue: " << route << " -> " << *result << std::endl;
+    return *result;
 }
 
 std::string HttpServer::_getContentType(const std::string& path) {
@@ -153,10 +170,25 @@ void HttpServer::_parseRequest(const std::unique_ptr<boost::asio::streambuf>& da
     fileContent;
 
     if (this->_status >= 400) {
-        bufferRepo = this->_protocolVersion + " " + std::to_string(this->_status) +" "+ (this->_status >= 400 ? "" : "OK") +"\r\n"
-        "Content-Type: text/plain\r\n"
-        "Content-Length: 3\r\n"
-        "\r\n"+ std::to_string(this->_status) +"\n";
+        std::string errorMessage;
+        switch (this->_status) {
+            case 403:
+                errorMessage = "403 Forbidden";
+                break;
+            case 404:
+                errorMessage = "404 Not Found";
+                break;
+            case 500:
+                errorMessage = "500 Internal Server Error";
+                break;
+            default:
+                errorMessage = std::to_string(this->_status) + " Error";
+        }
+        
+        bufferRepo = this->_protocolVersion + " " + std::to_string(this->_status) + " " + errorMessage + "\r\n"
+        "Content-Type: text/html\r\n"
+        "Content-Length: " + std::to_string(errorMessage.length() + 50) + "\r\n"
+        "\r\n<html><body><h1>" + errorMessage + "</h1><p>La ressource demandée n'est pas disponible.</p></body></html>";
     }
 
     boost::asio::write(this->_sock, boost::asio::buffer(bufferRepo));
