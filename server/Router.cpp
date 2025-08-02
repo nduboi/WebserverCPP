@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <iostream>
 
-Router::Router() {
+Router::Router(std::shared_ptr<Logger::ALogger> logger) : _logger(logger, "ROUTER"){
 }
 
 bool Router::_isValidRoute(const std::string &route) const {
@@ -31,8 +31,6 @@ std::optional<std::string> Router::_checkFolderRoutes(const std::string &key) co
                 fullPath += "/";
             }
             fullPath += remainingPath;
-            
-            // Vérifier que le fichier existe
             if (std::filesystem::exists(fullPath) && std::filesystem::is_regular_file(fullPath)) {
                 return fullPath;
             }
@@ -43,7 +41,7 @@ std::optional<std::string> Router::_checkFolderRoutes(const std::string &key) co
 
 std::optional<std::string> Router::askRoute(const std::string &key) {
     if (!_isValidRoute(key)) {
-        std::cerr << "[Router] Route invalide détectée: " << key << std::endl;
+        this->_logger.error("Route invalide détectée: " + key);
         return std::nullopt;
     }
     auto it = _routeList.find(key);
@@ -54,32 +52,32 @@ std::optional<std::string> Router::askRoute(const std::string &key) {
 
 void Router::addRoute(const std::string &key, const std::string &file) {
     if (!_isValidRoute(key)) {
-        std::cerr << "[Router] Tentative d'ajout d'une route invalide: " << key << std::endl;
+        this->_logger.error("Tentative d'ajout d'une route invalide: " + key);
         return;
     }
     _routeList[key] = file;
-    std::cout << "[Router] Route ajoutée: " << key << " -> " << file << std::endl;
+    this->_logger.debug("Route ajoutée: " + key + " -> " + file);
 }
 
 void Router::addFolder(const std::string &prefix, const std::string &folderPath) {
     if (!_isValidRoute(prefix)) {
-        std::cerr << "[Router] Tentative d'ajout d'un dossier avec préfixe invalide: " << prefix << std::endl;
+        this->_logger.error("Tentative d'ajout d'un dossier avec préfixe invalide: " + prefix);
         return;
     }
     
     if (!std::filesystem::exists(folderPath) || !std::filesystem::is_directory(folderPath)) {
-        std::cerr << "[Router] Le dossier n'existe pas: " << folderPath << std::endl;
+        this->_logger.error("Le dossier n'existe pas: " + folderPath);
         return;
     }
     _folderRoutes[prefix] = folderPath;
-    std::cout << "[Router] Dossier ajouté: " << prefix << "/* -> " << folderPath << std::endl;
+    this->_logger.debug("Dossier ajouté: " + prefix + "/* -> " + folderPath);
 }
 
 void Router::removeRoute(const std::string &key) {
     auto it = _routeList.find(key);
     if (it != _routeList.end()) {
         _routeList.erase(it);
-        std::cout << "[Router] Route supprimée: " << key << std::endl;
+        this->_logger.debug("Route supprimée: " + key);
     }
 }
 

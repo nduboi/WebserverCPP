@@ -1,2 +1,4 @@
 static_root = ""
 port = 8080
+log_level = 1 # 0 = DEBUG | 1 = INFO | 2 = ERROR | 3 = FATAL
+log_file = "2-08.log"
